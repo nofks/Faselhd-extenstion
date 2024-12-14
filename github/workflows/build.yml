@@ -2,9 +2,11 @@ name: Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
   pull_request:
-    branches: [ master ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -12,27 +14,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up JDK 11
-        uses: actions/setup-java@v1
+      - uses: actions/checkout@v3
+      
+      - name: Setup JDK 11
+        uses: actions/setup-java@v3
         with:
           java-version: 11
-      - name: Build
+          distribution: adopt
+      
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+      
+      - name: Grant execute permission
+        run: chmod +x gradlew
+      
+      - name: Build Plugin
         run: |
-          chmod +x gradlew
           ./gradlew make
+          
       - name: Push builds
         run: |
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-          git clone https://github.com/YourUsername/cloudstream-faselhds.git --branch=builds builds --single-branch || (
-            git init builds
-            cd builds
-            git checkout -b builds
-            git remote add origin https://github.com/YourUsername/cloudstream-faselhds.git
-          )
+          git clone --branch=builds --single-branch "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" builds
           cd builds
-          cp ../app/build/repos/* .
+          git rm -rf .
+          cp -r ../build/repos/* .
           git add .
-          git commit -m "Build $GITHUB_SHA" || exit 0
-          git push https://${{ secrets.GITHUB_TOKEN }}@github.com/YourUsername/cloudstream-faselhds.git builds -f
+          git commit -m "Build ${{ github.sha }}" || exit 0
+          git push
